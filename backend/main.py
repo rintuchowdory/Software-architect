@@ -4,15 +4,16 @@ from datetime import date, timedelta
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
-from database import Base, engine, SessionLocal
+from database import Base, engine, SessionLocal, DB_INIT_ERROR
 import models
 from routers import auth_routes, clients_routes, projects_routes, financials_routes, dashboard_routes
 
 app = FastAPI(title="Software Architect API")
 
-_init_error: str | None = None
+_init_error: str | None = DB_INIT_ERROR
 try:
-    Base.metadata.create_all(bind=engine)
+    if not _init_error:
+        Base.metadata.create_all(bind=engine)
 except Exception as e:  # noqa: BLE001
     _init_error = f"create_all failed: {type(e).__name__}: {e}"
 
