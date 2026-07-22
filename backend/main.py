@@ -8,9 +8,13 @@ from database import Base, engine, SessionLocal
 import models
 from routers import auth_routes, clients_routes, projects_routes, financials_routes, dashboard_routes
 
-Base.metadata.create_all(bind=engine)
-
 app = FastAPI(title="Software Architect API")
+
+_init_error: str | None = None
+try:
+    Base.metadata.create_all(bind=engine)
+except Exception as e:  # noqa: BLE001
+    _init_error = f"create_all failed: {type(e).__name__}: {e}"
 
 origins = os.getenv("CORS_ORIGINS", "http://localhost:5173").split(",")
 app.add_middleware(
@@ -30,6 +34,8 @@ app.include_router(dashboard_routes.router, prefix="/api")
 
 @app.get("/api/health")
 def health():
+    if _init_error:
+        return {"status": "error", "detail": _init_error}
     return {"status": "ok"}
 
 
@@ -68,4 +74,8 @@ def seed():
         db.close()
 
 
-seed()
+try:
+    if not _init_error:
+        seed()
+except Exception as e:  # noqa: BLE001
+    _init_error = f"seed failed: {type(e).__name__}: {e}"
