@@ -4,6 +4,13 @@ from sqlalchemy.orm import sessionmaker, declarative_base
 
 DATABASE_URL = os.getenv("DATABASE_URL", "sqlite:///./software_architect.db")
 
+# SQLAlchemy 2.0 dropped support for the legacy "postgres://" scheme that
+# Render (and Heroku-style providers before it) still hand out in their
+# generated connection strings. Without this, create_engine() raises
+# NoSuchModuleError and the app falls back to DB_INIT_ERROR on every request.
+if DATABASE_URL.startswith("postgres://"):
+    DATABASE_URL = DATABASE_URL.replace("postgres://", "postgresql://", 1)
+
 DB_INIT_ERROR: str | None = None
 engine = None
 SessionLocal = None
