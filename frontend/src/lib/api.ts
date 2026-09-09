@@ -49,3 +49,17 @@ export function currentUser() {
   const raw = localStorage.getItem("sa_user");
   return raw ? JSON.parse(raw) : null;
 }
+
+export async function register(name: string, email: string, password: string) {
+  const res = await api.post<LoginResponse>("/auth/register", { name, email, password });
+  localStorage.setItem("sa_token", res.access_token);
+  localStorage.setItem("sa_user", JSON.stringify(res.user));
+  return res.user;
+}
+
+export async function loginWithEmail(email: string, password: string) {
+  const res = await api.post<LoginResponse>("/auth/login", { email, password });
+  localStorage.setItem("sa_token", res.access_token);
+  localStorage.setItem("sa_user", JSON.stringify(res.user));
+  return res.user;
+}

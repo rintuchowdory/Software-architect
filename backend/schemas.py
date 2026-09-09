@@ -7,6 +7,17 @@ class GoogleLoginRequest(BaseModel):
     credential: str
 
 
+class RegisterRequest(BaseModel):
+    name: str
+    email: EmailStr
+    password: str
+
+
+class PasswordLoginRequest(BaseModel):
+    email: EmailStr
+    password: str
+
+
 class UserOut(BaseModel):
     id: str
     name: str

@@ -1,5 +1,11 @@
 import { createContext, useContext, useState, type ReactNode } from "react";
-import { loginWithGoogle as apiLoginWithGoogle, logout as apiLogout, currentUser } from "@/lib/api";
+import {
+  loginWithGoogle as apiLoginWithGoogle,
+  loginWithEmail as apiLoginWithEmail,
+  register as apiRegister,
+  logout as apiLogout,
+  currentUser,
+} from "@/lib/api";
 
 type User = { id: string; name: string; email: string };
 
@@ -8,6 +14,8 @@ type AuthState = {
   loading: boolean;
   error: string | null;
   loginWithGoogle: (credential: string) => Promise<void>;
+  loginWithEmail: (email: string, password: string) => Promise<void>;
+  register: (name: string, email: string, password: string) => Promise<void>;
   logout: () => void;
 };
 
@@ -32,13 +40,41 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
   }
 
+  async function loginWithEmail(email: string, password: string) {
+    setLoading(true);
+    setError(null);
+    try {
+      const u = await apiLoginWithEmail(email, password);
+      setUser(u);
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Could not sign in");
+      throw e;
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  async function register(name: string, email: string, password: string) {
+    setLoading(true);
+    setError(null);
+    try {
+      const u = await apiRegister(name, email, password);
+      setUser(u);
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Could not create the account");
+      throw e;
+    } finally {
+      setLoading(false);
+    }
+  }
+
   function logout() {
     apiLogout();
     setUser(null);
   }
 
   return (
-    <AuthContext.Provider value={{ user, loading, error, loginWithGoogle, logout }}>
+    <AuthContext.Provider value={{ user, loading, error, loginWithGoogle, loginWithEmail, register, logout }}>
       {children}
     </AuthContext.Provider>
   );
