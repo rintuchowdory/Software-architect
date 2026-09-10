@@ -30,6 +30,11 @@ jobs:
           cd backend
           pip install -r requirements.txt
 
+      - name: Run backend integration tests
+        run: |
+          cd backend
+          python tests/integration_test.py
+
       - name: Install frontend dependencies
         run: |
           cd frontend
