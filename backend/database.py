@@ -37,6 +37,9 @@ if engine is not None and DATABASE_URL.startswith("postgresql"):
         DB_INIT_ERROR = f"schema init failed: {type(e).__name__}: {e}"
         engine = None
 
+if engine is not None:
+    SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
+
 Base = declarative_base()
 
 
