@@ -18,9 +18,24 @@ SessionLocal = None
 try:
     connect_args = {"check_same_thread": False} if DATABASE_URL.startswith("sqlite") else {}
     engine = create_engine(DATABASE_URL, connect_args=connect_args)
-    SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
 except Exception as e:  # noqa: BLE001
     DB_INIT_ERROR = f"{type(e).__name__}: {e}"
+    engine = None
+
+# When running on Postgres, make sure the dedicated application schema exists
+# before anything (e.g. Base.metadata.create_all in main.py) creates tables.
+# This lets the app share a Postgres instance with other projects without
+# colliding on common table names (users, projects, ...).
+if engine is not None and DATABASE_URL.startswith("postgresql"):
+    try:
+        with engine.connect() as conn:
+            conn.exec_driver_sql(
+                f'CREATE SCHEMA IF NOT EXISTS "{os.getenv("DB_SCHEMA", "software_architect")}"'
+            )
+            conn.commit()
+    except Exception as e:  # noqa: BLE001
+        DB_INIT_ERROR = f"schema init failed: {type(e).__name__}: {e}"
+        engine = None
 
 Base = declarative_base()
 
