@@ -33,6 +33,30 @@ email creates the account with that password; later sign-ins don't hard-fail
 on a mismatched password (this is a demo shortcut — swap in a real password
 check, or an OAuth/passkey flow, before shipping this for real users).
 
+## Social sign-in providers
+
+Sign-in options are discovered by the frontend via `GET /api/auth/providers`.
+A provider appears on the login page only when its credentials are configured:
+
+| Provider | Environment variables | Where to register |
+| --- | --- | --- |
+| Google | `GOOGLE_CLIENT_ID` | Google Cloud Console → Credentials → OAuth client (used by Google Identity Services) |
+| GitHub | `GITHUB_CLIENT_ID`, `GITHUB_CLIENT_SECRET` | GitHub → Settings → Developer settings → OAuth Apps |
+| Microsoft | `MICROSOFT_CLIENT_ID`, `MICROSOFT_CLIENT_SECRET`, `MICROSOFT_TENANT_ID` (default `common`) | Azure Portal → Microsoft Entra ID → App registrations (add a web redirect URI) |
+
+Both OAuth providers use the authorization-code flow with a signed state
+parameter (CSRF protection, 10-minute TTL). The provider callback URL to
+register is:
+
+```
+{FRONTEND_URL}/api/auth/github/callback     # plus /microsoft/callback
+```
+
+`FRONTEND_URL` (default `http://localhost:5173`) must be set to the deployed
+frontend origin — it is used both for the provider callback URL and for the
+post-login redirect back to `/login?token=…`. Accounts are linked by email,
+so a user can combine providers on one account.
+
 ## Deploy to Render
 
 1. Push this folder to a GitHub repo.

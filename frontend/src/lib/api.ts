@@ -31,7 +31,9 @@ export const api = {
   del: <T>(path: string) => request<T>(path, { method: "DELETE" }),
 };
 
-export type LoginResponse = { access_token: string; user: { id: string; name: string; email: string } };
+export type User = { id: string; name: string; email: string };
+
+export type LoginResponse = { access_token: string; user: User };
 
 export async function loginWithGoogle(credential: string) {
   const res = await api.post<LoginResponse>("/auth/google", { credential });
@@ -62,4 +64,27 @@ export async function loginWithEmail(email: string, password: string) {
   localStorage.setItem("sa_token", res.access_token);
   localStorage.setItem("sa_user", JSON.stringify(res.user));
   return res.user;
+}
+
+// ── Social providers (GitHub / Microsoft OAuth code flow) ────────────────────
+
+export type Providers = { google: boolean; github: boolean; microsoft: boolean };
+
+export async function getProviders(): Promise<Providers> {
+  return api.get<Providers>("/auth/providers");
+}
+
+export type OAuthProvider = "github" | "microsoft";
+
+export function authorizeUrl(provider: OAuthProvider): string {
+  const redirect_uri = `${window.location.origin}/login`;
+  return `${BASE}/auth/${provider}/authorize?${new URLSearchParams({ redirect_uri })}`;
+}
+
+/** Completes the OAuth code-flow login: backend redirected back with ?token=… */
+export function completeOAuthLogin(token: string, name: string, email: string): User {
+  const user: User = { id: "", name, email };
+  localStorage.setItem("sa_token", token);
+  localStorage.setItem("sa_user", JSON.stringify(user));
+  return user;
 }

@@ -1,12 +1,22 @@
+import urllib.parse
+
 from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi.responses import RedirectResponse
 from sqlalchemy.orm import Session
 
 from database import get_db
 import models
 import schemas
 from auth import verify_google_credential, create_access_token
+import oauth
 
 router = APIRouter(prefix="/auth", tags=["auth"])
+
+
+@router.get("/providers")
+def providers():
+    """Which social sign-in providers have credentials configured."""
+    return oauth.enabled_providers()
 
 
 @router.post("/google", response_model=schemas.LoginResponse)
@@ -96,3 +106,70 @@ def login_with_password(payload: schemas.PasswordLoginRequest, db: Session = Dep
 
     token = create_access_token(user.id)
     return schemas.LoginResponse(access_token=token, user=schemas.UserOut.model_validate(user))
+
+
+# ── GitHub & Microsoft OAuth (authorization-code flow) ───────────────────────
+
+_OAUTH = {
+    "github": {"authorize": oauth.github_authorize_url, "profile": oauth.github_profile},
+    "microsoft": {"authorize": oauth.microsoft_authorize_url, "profile": oauth.microsoft_profile},
+}
+
+
+@router.get("/{provider}/authorize")
+def oauth_authorize(provider: str, redirect_uri: str | None = None):
+    """
+    Starts the OAuth flow: returns a 302 to the provider's consent screen.
+    `redirect_uri` is where the frontend wants to land after the callback
+    (defaults to {FRONTEND_URL}/login).
+    """
+    spec = _OAUTH.get(provider)
+    if spec is None or not oauth.enabled_providers().get(provider):
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"{provider} sign-in is not configured on the server",
+        )
+
+    target = redirect_uri or f"{oauth.FRONTEND_URL}/login"
+    # Only allow redirects back to our own frontend (or localhost in dev).
+    parsed = urllib.parse.urlparse(target)
+    allowed = [urllib.parse.urlparse(oauth.FRONTEND_URL).netloc, "localhost:5173", "127.0.0.1:5173"]
+    if parsed.netloc not in allowed:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="redirect_uri not allowed")
+
+    state = oauth.sign_state(target)
+    authorize_url = spec["authorize"](f"{oauth.FRONTEND_URL}/api/auth/{provider}/callback", state)
+    return RedirectResponse(authorize_url, status_code=302)
+
+
+@router.get("/{provider}/callback")
+def oauth_callback(provider: str, code: str, state: str, db: Session = Depends(get_db)):
+    """
+    Provider redirects here after consent. Verifies the signed state,
+    exchanges the code, upserts the user by email, then sends the browser
+    back to the frontend with a session token in the query string.
+    """
+    spec = _OAUTH.get(provider)
+    if spec is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Unknown provider")
+
+    try:
+        redirect_target = oauth.verify_state(state)
+    except ValueError as e:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
+
+    try:
+        profile = spec["profile"](code, f"{oauth.FRONTEND_URL}/api/auth/{provider}/callback")
+    except ValueError as e:
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail=f"Could not sign in with {provider}: {e}")
+    except Exception as e:  # noqa: BLE001 — provider outages / bad codes
+        raise HTTPException(status_code=status.HTTP_502_BAD_GATEWAY, detail=f"Provider error: {e}")
+
+    user = oauth.upsert_user_by_email(db, models, profile["email"], profile["name"])
+    token = create_access_token(user.id)
+
+    params = urllib.parse.urlencode(
+        {"token": token, "name": user.name, "email": user.email}
+    )
+    separator = "&" if urllib.parse.urlparse(redirect_target).query else "?"
+    return RedirectResponse(f"{redirect_target}{separator}{params}", status_code=302)
