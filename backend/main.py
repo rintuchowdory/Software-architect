@@ -1,8 +1,10 @@
 import os
 from datetime import date, timedelta
 
-from fastapi import FastAPI
+from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import JSONResponse
+from sqlalchemy.exc import SQLAlchemyError
 
 from database import Base, engine, SessionLocal, DB_INIT_ERROR
 import models
@@ -31,6 +33,23 @@ app.include_router(clients_routes.router, prefix="/api")
 app.include_router(projects_routes.router, prefix="/api")
 app.include_router(financials_routes.router, prefix="/api")
 app.include_router(dashboard_routes.router, prefix="/api")
+
+
+@app.exception_handler(SQLAlchemyError)
+async def database_unavailable(request: Request, exc: SQLAlchemyError):
+    """
+    DB connection failures (e.g. a paused/deleted Postgres provider) reach
+    the browser as a headerless 500, which surfaces as "Failed to fetch"
+    with no CORS response. Return a clean 503 JSON instead so the UI can
+    show what actually happened.
+    """
+    return JSONResponse(
+        status_code=503,
+        content={
+            "detail": "Database unavailable — the database provider may be paused or deleted. "
+            "Restore it (or update DATABASE_URL), then retry."
+        },
+    )
 
 
 @app.get("/api/health")
