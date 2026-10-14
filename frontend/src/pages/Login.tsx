@@ -2,7 +2,7 @@ import { useEffect, useRef, useState, type FormEvent } from "react";
 import { useNavigate, Link } from "react-router-dom";
 import { CodeXml } from "lucide-react";
 import { useAuth } from "@/context/AuthContext";
-import { getProviders, authorizeUrl, completeOAuthLogin, type Providers } from "@/lib/api";
+import { getProviders, authorizeUrl, type Providers } from "@/lib/api";
 
 const GitHubIcon = () => (
   <svg viewBox="0 0 16 16" width="18" height="18" fill="currentColor" aria-hidden>
@@ -35,7 +35,7 @@ declare global {
 const GOOGLE_CLIENT_ID = import.meta.env.VITE_GOOGLE_CLIENT_ID as string | undefined;
 
 export default function Login() {
-  const { loginWithGoogle, loginWithEmail, register, loading, error } = useAuth();
+  const { loginWithGoogle, loginWithOAuth, loginWithEmail, register, loading, error } = useAuth();
   const navigate = useNavigate();
   const buttonRef = useRef<HTMLDivElement>(null);
 
@@ -53,20 +53,31 @@ export default function Login() {
       .catch(() => setProviders({ google: false, github: false, microsoft: false }));
   }, []);
 
-  // OAuth code-flow completion: backend redirected back to /login?token=…
+  // Finish the backend OAuth redirect once, even under React StrictMode.
   const oauthHandled = useRef(false);
   useEffect(() => {
     if (oauthHandled.current) return;
     const params = new URLSearchParams(window.location.search);
     const token = params.get("token");
     if (!token) return;
+
+    // Mark this callback as in progress to avoid duplicate handling on re-render.
     oauthHandled.current = true;
     const name2 = params.get("name") || "";
     const email2 = params.get("email") || "";
-    completeOAuthLogin(token, name2, email2);
-    window.history.replaceState({}, document.title, window.location.pathname);
-    navigate("/app");
-  }, [navigate]);
+    try {
+      loginWithOAuth(token, name2, email2);
+      // Remove the access token from the address bar before navigating.
+      window.history.replaceState({}, document.title, window.location.pathname);
+      navigate("/app", { replace: true });
+    } catch (oauthError) {
+      // Never leave a session token in the URL when the callback cannot be used.
+      window.history.replaceState({}, document.title, window.location.pathname);
+      setFormError(
+        oauthError instanceof Error ? oauthError.message : "Could not complete social sign-in.",
+      );
+    }
+  }, [loginWithOAuth, navigate]);
 
   // --- Google button (kept as before) ---------------------------------------
   useEffect(() => {

@@ -81,9 +81,31 @@ export function authorizeUrl(provider: OAuthProvider): string {
   return `${BASE}/auth/${provider}/authorize?${new URLSearchParams({ redirect_uri })}`;
 }
 
-/** Completes the OAuth code-flow login: backend redirected back with ?token=… */
+/** Completes the OAuth code-flow login returned by the backend. */
 export function completeOAuthLogin(token: string, name: string, email: string): User {
-  const user: User = { id: "", name, email };
+  // The backend signs the actual database user ID into the JWT subject claim.
+  // Reuse it rather than creating a client-only ID or storing an empty ID.
+  const parts = token.split(".");
+  if (parts.length !== 3 || !parts[1]) {
+    throw new Error("The sign-in provider returned an invalid session token.");
+  }
+
+  const base64 = parts[1].replace(/-/g, "+").replace(/_/g, "/");
+  const padded = base64.padEnd(Math.ceil(base64.length / 4) * 4, "=");
+  let claims: { sub?: unknown };
+  try {
+    const binary = atob(padded);
+    const bytes = Uint8Array.from(binary, (character) => character.charCodeAt(0));
+    claims = JSON.parse(new TextDecoder().decode(bytes)) as { sub?: unknown };
+  } catch {
+    throw new Error("The sign-in provider returned an unreadable session token.");
+  }
+
+  if (typeof claims.sub !== "string" || claims.sub.trim() === "") {
+    throw new Error("The session token did not contain a user ID.");
+  }
+
+  const user: User = { id: claims.sub, name, email };
   localStorage.setItem("sa_token", token);
   localStorage.setItem("sa_user", JSON.stringify(user));
   return user;
