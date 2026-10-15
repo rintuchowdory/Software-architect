@@ -2,7 +2,6 @@ import { useEffect, useRef, useState, type FormEvent } from "react";
 import { useNavigate, Link } from "react-router-dom";
 import { CodeXml } from "lucide-react";
 import { useAuth } from "@/context/AuthContext";
-import { getProviders, authorizeUrl, type Providers } from "@/lib/api";
 
 const GitHubIcon = () => (
   <svg viewBox="0 0 16 16" width="18" height="18" fill="currentColor" aria-hidden>
@@ -32,91 +31,15 @@ declare global {
   }
 }
 
-const GOOGLE_CLIENT_ID = import.meta.env.VITE_GOOGLE_CLIENT_ID as string | undefined;
-
 export default function Login() {
   const { loginWithGoogle, loginWithOAuth, loginWithEmail, register, loading, error } = useAuth();
   const navigate = useNavigate();
-  const buttonRef = useRef<HTMLDivElement>(null);
 
   const [mode, setMode] = useState<"signin" | "signup">("signin");
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [formError, setFormError] = useState<string | null>(null);
-  const [providers, setProviders] = useState<Providers>({ google: false, github: false, microsoft: false });
-
-  // Discover which social providers the backend has credentials for.
-  useEffect(() => {
-    getProviders()
-      .then(setProviders)
-      .catch(() => setProviders({ google: false, github: false, microsoft: false }));
-  }, []);
-
-  // Finish the backend OAuth redirect once, even under React StrictMode.
-  const oauthHandled = useRef(false);
-  useEffect(() => {
-    if (oauthHandled.current) return;
-    const params = new URLSearchParams(window.location.search);
-    const token = params.get("token");
-    if (!token) return;
-
-    // Mark this callback as in progress to avoid duplicate handling on re-render.
-    
-    const name2 = params.get("name") || "";
-    const email2 = params.get("email") || "";
-    try {
-      loginWithOAuth(token, name2, email2);
-      // Remove the access token from the address bar before navigating.
-      window.history.replaceState({}, document.title, window.location.pathname);
-      navigate("/app", { replace: true });
-      oauthHandled.current = true
-    } catch (oauthError) {
-      // Never leave a session token in the URL when the callback cannot be used.
-      window.history.replaceState({}, document.title, window.location.pathname);
-      setFormError(
-        oauthError instanceof Error ? oauthError.message : "Could not complete social sign-in.",
-      );
-    }
-  }, [loginWithOAuth, navigate]);
-
-  // --- Google button (kept as before) ---------------------------------------
-  useEffect(() => {
-    if (!GOOGLE_CLIENT_ID || !buttonRef.current) return;
-
-    function renderButton() {
-      if (!window.google || !buttonRef.current) return;
-      window.google.accounts.id.initialize({
-        client_id: GOOGLE_CLIENT_ID,
-        callback: async (response: { credential: string }) => {
-          try {
-            await loginWithGoogle(response.credential);
-            navigate("/app");
-          } catch {
-            // error is surfaced via auth context
-          }
-        },
-      });
-      window.google.accounts.id.renderButton(buttonRef.current, {
-        theme: "filled_black",
-        size: "large",
-        width: 320,
-        text: "signin_with",
-      });
-    }
-
-    if (window.google) {
-      renderButton();
-    } else {
-      const interval = setInterval(() => {
-        if (window.google) {
-          clearInterval(interval);
-          renderButton();
-        }
-      }, 100);
-      return () => clearInterval(interval);
-    }
-  }, [loginWithGoogle, navigate]);
 
   // --- Email / password form -------------------------------------------------
   async function handleSubmit(e: FormEvent) {
@@ -164,7 +87,7 @@ export default function Login() {
           </h1>
           <p className="mt-1 text-sm text-slate-400">
             {mode === "signin"
-              ? "Sign in with your email or Google account to continue."
+              ? "Sign in with your email to continue."
               : "Sign up with your email, or use Google instead."}
           </p>
 
@@ -180,7 +103,7 @@ export default function Login() {
                 className={`rounded-md px-3 py-1.5 text-sm font-medium transition ${
                   mode === m
                     ? "bg-signal-400 text-ink-950"
-                    : "text-slate-400 hover:text-slate-200"
+                    : "text-slate-400 hover:text-slate-200"`
                 }`}
               >
                 {m === "signin" ? "Sign in" : "Sign up"}
@@ -229,51 +152,6 @@ export default function Login() {
               {mode === "signin" ? "Sign in" : "Create account"}
             </button>
           </form>
-
-          {/* Divider + social providers */}
-          <div className="my-5 flex items-center gap-3" aria-hidden>
-            <span className="h-px flex-1 bg-white/10" />
-            <span className="text-xs uppercase tracking-wider text-slate-500">or continue with</span>
-            <span className="h-px flex-1 bg-white/10" />
-          </div>
-
-          <div className="space-y-2.5">
-            {GOOGLE_CLIENT_ID ? (
-              <div className="flex justify-center">
-                <div ref={buttonRef} />
-              </div>
-            ) : providers.google ? (
-              <p className="text-center text-xs text-slate-500">
-                Google sign-in needs VITE_GOOGLE_CLIENT_ID set on the frontend.
-              </p>
-            ) : null}
-
-            {providers.github && (
-              <button
-                type="button"
-                onClick={() => window.location.assign(authorizeUrl("github"))}
-                className="flex w-full items-center justify-center gap-2.5 rounded-lg border border-white/10 bg-white/5 px-4 py-2.5 text-sm font-medium text-slate-100 transition hover:bg-white/10 hover:border-white/20"
-              >
-                <GitHubIcon /> Continue with GitHub
-              </button>
-            )}
-
-            {providers.microsoft && (
-              <button
-                type="button"
-                onClick={() => window.location.assign(authorizeUrl("microsoft"))}
-                className="flex w-full items-center justify-center gap-2.5 rounded-lg border border-white/10 bg-white/5 px-4 py-2.5 text-sm font-medium text-slate-100 transition hover:bg-white/10 hover:border-white/20"
-              >
-                <MicrosoftIcon /> Continue with Microsoft
-              </button>
-            )}
-
-            {!providers.github && !providers.microsoft && !GOOGLE_CLIENT_ID && (
-              <p className="text-center text-xs text-slate-500">
-                Social sign-in is unavailable — the backend has no provider credentials configured.
-              </p>
-            )}
-          </div>
 
           {error && <p className="mt-4 text-center text-sm text-red-400">{error}</p>}
         </div>
