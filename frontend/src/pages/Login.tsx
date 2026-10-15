@@ -62,7 +62,7 @@ export default function Login() {
     if (!token) return;
 
     // Mark this callback as in progress to avoid duplicate handling on re-render.
-    oauthHandled.current = true;
+    
     const name2 = params.get("name") || "";
     const email2 = params.get("email") || "";
     try {
@@ -70,6 +70,7 @@ export default function Login() {
       // Remove the access token from the address bar before navigating.
       window.history.replaceState({}, document.title, window.location.pathname);
       navigate("/app", { replace: true });
+      oauthHandled.current = true
     } catch (oauthError) {
       // Never leave a session token in the URL when the callback cannot be used.
       window.history.replaceState({}, document.title, window.location.pathname);
