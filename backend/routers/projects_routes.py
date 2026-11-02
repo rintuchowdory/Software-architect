@@ -6,6 +6,7 @@ from database import get_db
 import models, schemas
 from auth import get_current_user
 from utils import money
+from brief import generate_brief
 
 router = APIRouter(prefix="/projects", tags=["projects"])
 
@@ -17,6 +18,7 @@ def to_out(p: models.Project) -> schemas.ProjectOut:
         client_name=p.client.name if p.client else "—",
         stage=p.stage,
         budget=money(p.budget),
+        has_brief=bool((p.brief or "").strip()),
     )
 
 
@@ -59,6 +61,42 @@ def update_project_stage(
     if not project:
         raise HTTPException(status_code=404, detail="Project not found")
     project.stage = stage
+    db.commit()
+    db.refresh(project)
+    return to_out(project)
+
+
+@router.post("/{project_id}/brief", response_model=schemas.ProjectOut)
+def regenerate_brief(
+    project_id: str,
+    db: Session = Depends(get_db),
+    user: models.User = Depends(get_current_user),
+):
+    """Rebuild the brief from the stored intake answers.
+
+    Re-running is safe: the generator is deterministic, so the text only
+    changes if the answers (or the estimate table) changed.
+    """
+    project = db.query(models.Project).get(project_id)
+    if not project:
+        raise HTTPException(status_code=404, detail="Project not found")
+
+    answers: dict = {"created_on": project.created_at.date().isoformat() if project.created_at else ""}
+    for line in (project.intake_notes or "").splitlines():
+        if ":" in line:
+            key, value = line.split(":", 1)
+            answers[key.strip()] = value.strip()
+
+    if not answers.get("project_type"):
+        raise HTTPException(
+            status_code=422,
+            detail="This project has no intake answers. Send the intake link instead.",
+        )
+
+    result = generate_brief(answers)
+    project.brief = result["brief"]
+    project.brief_source = "intake"
+    project.budget = (result["estimate_low"] + result["estimate_high"]) / 2
     db.commit()
     db.refresh(project)
     return to_out(project)

@@ -33,3 +33,69 @@ def verify_password(password: str, stored: str | None) -> bool:
         return hmac.compare_digest(digest.hex(), hash_hex)
     except (ValueError, TypeError):
         return False
+
+
+# --- Invoicing helpers ------------------------------------------------------
+
+def tax_of(net: float, rate: float) -> float:
+    return round(net * rate / 100.0, 2)
+
+
+def gross_of(net: float, rate: float) -> float:
+    return round(net + tax_of(net, rate), 2)
+
+
+def default_tax_rate() -> float:
+    """0 % is the correct value for Kleinunternehmer under §19 UStG."""
+    import os
+
+    try:
+        return float(os.getenv("DEFAULT_TAX_RATE", "19"))
+    except ValueError:
+        return 19.0
+
+
+def next_invoice_number(db, year: int | None = None) -> str:
+    """Sequential, gap-free-per-year invoice number: RE-2026-0001.
+
+    Reads the highest existing number for the year rather than counting rows,
+    so deleting a draft cannot hand out a number twice.
+    """
+    import re
+    from datetime import date
+
+    import models
+
+    # The session is created with autoflush=False, so pending invoices would
+    # otherwise be invisible here and two invoices could get the same number.
+    db.flush()
+
+    year = year or date.today().year
+    prefix = f"RE-{year}-"
+    highest = 0
+    for (number,) in db.query(models.Invoice.number).filter(
+        models.Invoice.number.like(f"{prefix}%")
+    ):
+        match = re.fullmatch(rf"{prefix}(\d+)", number or "")
+        if match:
+            highest = max(highest, int(match.group(1)))
+    return f"{prefix}{highest + 1:04d}"
+
+
+def create_numbered_invoice(db, **fields):
+    """Insert an invoice and give it the next number in one safe step.
+
+    The row is added and flushed first, so concurrent numbering sees it and
+    the unique-per-year sequence cannot hand out the same number twice.
+    """
+    import models
+
+    invoice = models.Invoice(**fields)
+    db.add(invoice)
+    db.flush()
+    from datetime import date
+
+    year = invoice.created_at.year if invoice.created_at else date.today().year
+    invoice.number = next_invoice_number(db, year)
+    db.flush()
+    return invoice

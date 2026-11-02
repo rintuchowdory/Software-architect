@@ -7,6 +7,9 @@ import DashboardHome from "@/pages/app/DashboardHome";
 import Clients from "@/pages/app/Clients";
 import Projects from "@/pages/app/Projects";
 import Financials from "@/pages/app/Financials";
+import InvoiceDetail from "@/pages/app/InvoiceDetail";
+import Intake from "@/pages/Intake";
+import Legal from "@/pages/legal/Legal";
 
 function App() {
   return (
@@ -15,11 +18,16 @@ function App() {
         <Routes>
           <Route path="/" element={<Landing />} />
           <Route path="/login" element={<Login />} />
+          <Route path="/intake" element={<Intake />} />
+          <Route path="/impressum" element={<Legal page="impressum" />} />
+          <Route path="/datenschutz" element={<Legal page="datenschutz" />} />
+          <Route path="/agb" element={<Legal page="agb" />} />
           <Route path="/app" element={<AppShell />}>
             <Route index element={<DashboardHome />} />
             <Route path="clients" element={<Clients />} />
             <Route path="projects" element={<Projects />} />
             <Route path="financials" element={<Financials />} />
+            <Route path="financials/:id" element={<InvoiceDetail />} />
           </Route>
         </Routes>
       </BrowserRouter>

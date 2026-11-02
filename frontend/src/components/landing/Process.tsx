@@ -1,8 +1,24 @@
 const steps = [
-  { n: "01", title: "Client fills the intake", body: "A guided questionnaire captures scope, budget range, and timeline in about 10 minutes." },
-  { n: "02", title: "You send a quote", body: "Turn the brief into a line-itemed quote with a proposed timeline, straight from the project." },
-  { n: "03", title: "Deposit clears", body: "Client accepts and pays the deposit through Stripe — the project moves to \"In progress\" automatically." },
-  { n: "04", title: "Build in the open", body: "Log milestones, share previews, and invoice as you go — the client portal stays in sync the whole time." },
+  {
+    n: "01",
+    title: "Client fills the intake",
+    body: "You send one link. Three short steps capture the goal, the features, the timeline and the budget range.",
+  },
+  {
+    n: "02",
+    title: "A brief lands in your studio",
+    body: "The answers become a lead, a project in Intake, and a scoped brief with hours and a price range.",
+  },
+  {
+    n: "03",
+    title: "Quote, then invoice",
+    body: "Move the project to Quoted, send the offer, and raise an invoice with a sequential number and VAT breakdown.",
+  },
+  {
+    n: "04",
+    title: "Watch the numbers, not the inbox",
+    body: "The dashboard shows what was paid, what is outstanding, and which invoice to chase today.",
+  },
 ];
 
 export function Process() {
@@ -11,7 +27,9 @@ export function Process() {
       <div className="mx-auto max-w-6xl px-6">
         <div className="mx-auto max-w-2xl text-center">
           <h2 className="font-display text-3xl font-bold tracking-tight sm:text-4xl">How it works</h2>
-          <p className="mt-4 text-slate-400">Four stages, one project record, zero context-switching.</p>
+          <p className="mt-4 text-slate-400">
+            Four stages, one project record, and every one of them works today.
+          </p>
         </div>
         <ol className="mt-16 grid grid-cols-1 gap-10 sm:grid-cols-2 lg:grid-cols-4">
           {steps.map((s, i) => (

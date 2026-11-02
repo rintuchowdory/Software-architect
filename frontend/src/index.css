@@ -56,3 +56,14 @@
     backdrop-filter: blur(14px);
   }
 }
+
+@media print {
+  html,
+  body {
+    background: #fff !important;
+    color: #000 !important;
+  }
+  article {
+    box-shadow: none !important;
+  }
+}

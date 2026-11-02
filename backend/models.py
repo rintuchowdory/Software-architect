@@ -38,6 +38,9 @@ class Project(Base):
     stage = Column(String, default="intake")  # intake | quoted | in_progress | delivered
     budget = Column(Float, default=0)
     brief = Column(String, default="")
+    # How the brief was produced (manual | intake) and what the intake asked.
+    brief_source = Column(String, default="manual")
+    intake_notes = Column(String, default="")
     created_at = Column(DateTime, default=datetime.utcnow)
 
     client = relationship("Client", back_populates="projects")
@@ -48,9 +51,15 @@ class Invoice(Base):
     __tablename__ = "invoices"
     id = Column(String, primary_key=True, default=gen_id)
     project_id = Column(String, ForeignKey("projects.id"))
-    amount = Column(Float, default=0)
+    # Sequential per year, e.g. RE-2026-0007. Required for a valid German
+    # invoice (§14 UStG) and must never be reused.
+    number = Column(String, default="", index=True)
+    amount = Column(Float, default=0)          # net
+    tax_rate = Column(Float, default=19.0)     # 0 for Kleinunternehmer (§19 UStG)
     status = Column(String, default="draft")  # draft | sent | paid | overdue
+    notes = Column(String, default="")
     due_date = Column(Date, default=date.today)
+    paid_at = Column(Date, nullable=True)
     created_at = Column(DateTime, default=datetime.utcnow)
 
     project = relationship("Project", back_populates="invoices")

@@ -4,18 +4,104 @@ from datetime import date, timedelta
 from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
+from sqlalchemy import inspect, text
 from sqlalchemy.exc import SQLAlchemyError
 
 from database import Base, engine, SessionLocal, DB_INIT_ERROR
 import models
-from routers import auth_routes, clients_routes, projects_routes, financials_routes, dashboard_routes
+from routers import (
+    auth_routes,
+    clients_routes,
+    projects_routes,
+    financials_routes,
+    dashboard_routes,
+    intake_routes,
+    studio_routes,
+)
+from utils import next_invoice_number, default_tax_rate, create_numbered_invoice
 
 app = FastAPI(title="Software Architect API")
 
 _init_error: str | None = DB_INIT_ERROR
+
+
+def ensure_columns() -> None:
+    """Add columns introduced after a table already exists.
+
+    create_all() only creates missing tables, so an existing database would
+    keep the old schema and every invoice query would fail. This keeps the
+    deployed database in step without a migration tool.
+    """
+    specs = {
+        "projects": [
+            ("brief_source", "VARCHAR DEFAULT 'manual'"),
+            ("intake_notes", "VARCHAR DEFAULT ''"),
+        ],
+        "invoices": [
+            ("number", "VARCHAR DEFAULT ''"),
+            ("tax_rate", "FLOAT DEFAULT 19"),
+            ("notes", "VARCHAR DEFAULT ''"),
+            ("paid_at", "DATE"),
+        ],
+    }
+    insp = inspect(engine)
+    with engine.begin() as conn:
+        for table, columns in specs.items():
+            if not insp.has_table(table):
+                continue
+            present = {c["name"] for c in insp.get_columns(table)}
+            for name, ddl in columns:
+                if name not in present:
+                    conn.execute(text(f"ALTER TABLE {table} ADD COLUMN {name} {ddl}"))
+
+
+def backfill_invoices() -> None:
+    """Give pre-existing invoices the data the new UI needs."""
+    db = SessionLocal()
+    try:
+        if db.query(models.Invoice).count() == 0:
+            return
+        changed = False
+
+        unnumbered = (
+            db.query(models.Invoice)
+            .filter((models.Invoice.number == "") | (models.Invoice.number.is_(None)))
+            .order_by(models.Invoice.created_at)
+            .all()
+        )
+        for invoice in unnumbered:
+            year = invoice.created_at.year if invoice.created_at else date.today().year
+            invoice.number = next_invoice_number(db, year)
+            changed = True
+        if changed:
+            db.flush()
+
+        seen: set[str] = set()
+        for invoice in db.query(models.Invoice).order_by(models.Invoice.created_at):
+            if invoice.number in seen:
+                invoice.number = next_invoice_number(db)
+                changed = True
+            seen.add(invoice.number)
+
+        for invoice in db.query(models.Invoice).filter(models.Invoice.status == "paid"):
+            if not invoice.paid_at:
+                invoice.paid_at = invoice.due_date or date.today()
+                changed = True
+            if invoice.tax_rate is None:
+                invoice.tax_rate = default_tax_rate()
+                changed = True
+
+        if changed:
+            db.commit()
+    finally:
+        db.close()
+
+
 try:
     if not _init_error:
         Base.metadata.create_all(bind=engine)
+        ensure_columns()
+        backfill_invoices()
 except Exception as e:  # noqa: BLE001
     _init_error = f"create_all failed: {type(e).__name__}: {e}"
 
@@ -33,6 +119,8 @@ app.include_router(clients_routes.router, prefix="/api")
 app.include_router(projects_routes.router, prefix="/api")
 app.include_router(financials_routes.router, prefix="/api")
 app.include_router(dashboard_routes.router, prefix="/api")
+app.include_router(intake_routes.router, prefix="/api")
+app.include_router(studio_routes.router, prefix="/api")
 
 
 @app.exception_handler(SQLAlchemyError)
@@ -46,7 +134,7 @@ async def database_unavailable(request: Request, exc: SQLAlchemyError):
     return JSONResponse(
         status_code=503,
         content={
-            "detail": "Database unavailable — the database provider may be paused or deleted. "
+            "detail": "Database unavailable. The database provider may be paused or deleted. "
             "Restore it (or update DATABASE_URL), then retry."
         },
     )
@@ -83,12 +171,29 @@ def seed():
             db.refresh(p)
 
         today = date.today()
-        db.add_all([
-            models.Invoice(project_id=p1.id, amount=6250, status="paid", due_date=today - timedelta(days=20)),
-            models.Invoice(project_id=p1.id, amount=6250, status="sent", due_date=today + timedelta(days=10)),
-            models.Invoice(project_id=p4.id, amount=6100, status="paid", due_date=today - timedelta(days=5)),
-            models.Invoice(project_id=p2.id, amount=2000, status="overdue", due_date=today - timedelta(days=4)),
-        ])
+        rate = default_tax_rate()
+
+        def add_invoice(project, amount, status, due_offset, paid_offset=None, notes=""):
+            return create_numbered_invoice(
+                db,
+                project_id=project.id,
+                amount=amount,
+                tax_rate=rate,
+                status=status,
+                notes=notes,
+                due_date=today + timedelta(days=due_offset),
+                paid_at=(today + timedelta(days=paid_offset)) if paid_offset is not None else None,
+            )
+
+        add_invoice(p1, 6250, "paid", -20, -22)
+        add_invoice(p1, 6250, "sent", 10)
+        add_invoice(p4, 6100, "paid", -5, -6)
+        add_invoice(p2, 2000, "overdue", -4)
+
+        # A little history so the revenue chart has something to show.
+        for months_back, amount in ((1, 4800), (2, 7200), (3, 3900), (4, 5100), (5, 6400)):
+            add_invoice(p4, amount, "paid", -30 * months_back, -30 * months_back, notes="Archiv")
+
         db.commit()
     finally:
         db.close()

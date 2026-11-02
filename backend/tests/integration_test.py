@@ -164,6 +164,108 @@ def run_checks():
     s, r = call("GET", "/api/auth/me")
     check("GET /api/auth/me without token: 401", s == 401, f"{s} {r}")
 
+    # --- dashboard overview --------------------------------------------------
+    s, r = call("GET", "/api/dashboard/overview", token=token)
+    check("overview: 200", s == 200, f"{s} {r}")
+    check(
+        "overview: KPI fields present",
+        all(k in r for k in ("paid_this_month", "outstanding", "pipeline_value", "overdue_amount")),
+        str(list(r.keys())),
+    )
+    check("overview: six revenue months", len(r.get("revenue_series", [])) == 6, str(r.get("revenue_series")))
+    check("overview: pipeline has four stages", len(r.get("pipeline", [])) == 4, str(r.get("pipeline")))
+    check("overview: actions list present", isinstance(r.get("actions"), list), str(r.get("actions")))
+
+    # --- invoices: numbering, VAT, status ------------------------------------
+    s, invoices = call("GET", "/api/financials/invoices", token=token)
+    check("invoices: 200 + list", s == 200 and isinstance(invoices, list) and len(invoices) > 0, f"{s}")
+    numbers = [i["number"] for i in invoices]
+    check("invoices: every invoice numbered RE-YYYY-NNNN",
+          all(n.startswith("RE-") and len(n.split("-")) == 3 and n.split("-")[2].isdigit() for n in numbers),
+          str(numbers[:3]))
+    check("invoices: numbers unique", len(set(numbers)) == len(numbers), str(numbers))
+    first = invoices[0]
+    net = float(first["amount"].replace(".", "").replace(" €", ""))
+    tax = float(first["tax_amount"].replace(".", "").replace(" €", ""))
+    total = float(first["total"].replace(".", "").replace(" €", ""))
+    check("invoices: total equals net plus tax", abs((net + tax) - total) <= 2, f"{net} + {tax} != {total}")
+
+    project_id = first["project_id"]
+    s, created = call("POST", "/api/financials/invoices",
+                      {"project_id": project_id, "amount": 1000, "due_date": None}, token=token)
+    check("invoice create: 200 + next number", s == 200 and created.get("number") not in numbers, f"{s} {created}")
+    check("invoice create: 19% default VAT", created.get("tax_rate") == 19.0 and created.get("tax_amount") == "190 €", str(created))
+    check("invoice create: draft status", created.get("status") == "draft", str(created.get("status")))
+
+    s, paid = call("PATCH", f"/api/financials/invoices/{created['id']}", {"status": "paid"}, token=token)
+    check("invoice mark paid: paid_at set", s == 200 and paid.get("paid_at") != "", f"{s} {paid}")
+
+    s, r = call("PATCH", f"/api/financials/invoices/{created['id']}", {"status": "banana"}, token=token)
+    check("invoice invalid status: 422", s == 422, f"{s} {r}")
+
+    s, r = call("GET", f"/api/financials/invoices/{created['id']}", token=token)
+    check("invoice by id: 200", s == 200 and r.get("id") == created["id"], f"{s} {r}")
+
+    s, r = call("GET", "/api/financials/invoices/doesnotexist", token=token)
+    check("invoice by id unknown: 404", s == 404, f"{s} {r}")
+
+    # --- studio profile (invoice sender block) -------------------------------
+    s, r = call("GET", "/api/studio/profile", token=token)
+    check("studio profile: 200 + completeness flag", s == 200 and "complete" in r, f"{s} {r}")
+
+    # --- public intake: no login, generates brief + project ------------------
+    s, r = call("GET", "/api/public/intake/options")
+    check("intake options: public 200 + types/features",
+          s == 200 and len(r.get("project_types", [])) > 3 and len(r.get("features", [])) > 5, f"{s} {r}")
+
+    intake_body = {
+        "project_type": "shop",
+        "goal": "Handgemachte Kerzen online verkaufen",
+        "features": ["payments", "cms"],
+        "timeline": "8w",
+        "budget": "4000",
+        "client_name": "Intake Tester",
+        "company": "Kerzen GmbH",
+        "email": f"intake_{ts}@test.dev",
+    }
+    s, intake = call("POST", "/api/public/intake", intake_body)
+    check("intake submit: public 200", s == 200, f"{s} {intake}")
+    check("intake submit: brief with estimate",
+          intake.get("hours", 0) > 0 and "€" in intake.get("estimate_low", "") and "## Umfang" in intake.get("brief", ""),
+          str(intake)[:200])
+    check("intake submit: hours match feature sum", intake.get("hours") == 110, str(intake.get("hours")))
+
+    s, r = call("POST", "/api/public/intake", {**intake_body, "project_type": "spaceship"})
+    check("intake unknown project type: 422", s == 422, f"{s} {r}")
+
+    s, projects = call("GET", "/api/projects", token=token)
+    intake_project = next((p for p in projects if p["id"] == intake.get("project_id")), None)
+    check("intake created a project visible to the studio",
+          intake_project is not None and intake_project["stage"] == "intake" and intake_project["has_brief"],
+          str(intake_project))
+
+    s, clients = call("GET", "/api/clients", token=token)
+    check("intake created a lead client",
+          any(c["email"] == intake_body["email"] and c["status"] == "lead" for c in clients), str(clients)[:200])
+
+    s, r = call("POST", f"/api/projects/{intake['project_id']}/brief", token=token)
+    check("regenerate brief from intake answers: 200", s == 200 and r.get("has_brief"), f"{s} {r}")
+
+    # manual project without intake answers cannot be regenerated
+    s, manual_client = call("POST", "/api/clients",
+                            {"name": "Manual", "email": f"manual_{ts}@test.dev"}, token=token)
+    s, manual_project = call("POST", "/api/projects",
+                             {"name": "Manual project", "client_id": manual_client["id"]}, token=token)
+    s, r = call("POST", f"/api/projects/{manual_project['id']}/brief", token=token)
+    check("regenerate brief without intake answers: 422", s == 422, f"{s} {r}")
+
+    # --- rate limit on the public endpoint ----------------------------------
+    statuses = []
+    for _ in range(4):
+        s, _r = call("POST", "/api/public/intake", intake_body)
+        statuses.append(s)
+    check("intake rate limit kicks in after 5 per hour", 429 in statuses, str(statuses))
+
     # --- legacy (password-less) account can set a password on sign-up --------
     s, r = call("POST", "/api/auth/register", {"name": "", "email": email, "password": "anotherpass123"})
     check("register on account that already has a password: 409", s == 409, f"{s} {r}")
