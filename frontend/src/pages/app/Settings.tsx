@@ -42,7 +42,7 @@ const fieldMeta: { key: keyof Profile; label: string; hint?: string; type?: stri
   { key: "address", label: "Adresse", hint: "Straße, PLZ und Ort", wide: true },
   { key: "email", label: "E-Mail" },
   { key: "phone", label: "Telefon" },
-  { key: "vat_id", label: "USt-IdNr.", hint: "Alternativ Steuernummer angeben" },
+  { key: "vat_id", label: "USt-IdNr", hint: "Alternativ Steuernummer angeben" },
   { key: "tax_number", label: "Steuernummer" },
   { key: "bank", label: "Bank" },
   { key: "iban", label: "IBAN" },
