@@ -14,6 +14,12 @@ export function LandingHeader() {
           </span>
         </Link>
         <div className="flex items-center gap-3">
+          <a
+            href="#pricing"
+            className="hidden text-sm font-medium text-slate-300 transition hover:text-white sm:block"
+          >
+            Pricing
+          </a>
           <Link
             to="/login"
             className="hidden text-sm font-medium text-slate-300 transition hover:text-white sm:block"

@@ -26,6 +26,11 @@ type Summary = {
   overdue_amount: string;
 };
 
+function deDate(value: string) {
+  const [y, m, d] = (value || "").split("-");
+  return y && m && d ? `${d}.${m}.${y}` : value;
+}
+
 const statusColor: Record<Invoice["status"], string> = {
   draft: "bg-white/5 text-slate-400",
   sent: "bg-warn-400/10 text-warn-400",
@@ -118,7 +123,7 @@ export default function Financials() {
                 </td>
                 <td className="px-4 py-3.5 text-right font-medium text-slate-200">{inv.total}</td>
                 <td className="px-4 py-3.5 text-slate-400">
-                  {inv.due_date}
+                  {deDate(inv.due_date)}
                   {inv.days_overdue > 0 && (
                     <span className="ml-2 text-[11px] text-red-400">+{inv.days_overdue}d</span>
                   )}

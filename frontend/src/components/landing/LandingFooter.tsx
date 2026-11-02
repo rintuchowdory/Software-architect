@@ -1,3 +1,4 @@
+import { Link } from "react-router-dom";
 import { CodeXml } from "lucide-react";
 
 export function LandingFooter() {
@@ -10,7 +11,13 @@ export function LandingFooter() {
           </span>
           <span className="font-display text-sm font-semibold text-slate-200">Software Architect</span>
         </div>
-        <p className="text-xs text-slate-500">© {new Date().getFullYear()} Software Architect. All rights reserved.</p>
+        <div className="flex flex-wrap items-center justify-center gap-5 text-xs text-slate-500">
+          <Link to="/impressum" className="transition hover:text-slate-300">Impressum</Link>
+          <Link to="/datenschutz" className="transition hover:text-slate-300">Datenschutz</Link>
+          <Link to="/agb" className="transition hover:text-slate-300">AGB</Link>
+          <Link to="/intake" className="transition hover:text-slate-300">Intake</Link>
+        </div>
+        <p className="text-xs text-slate-500">© {new Date().getFullYear()} Software Architect</p>
       </div>
     </footer>
   );
