@@ -98,6 +98,7 @@ class InvoiceOut(BaseModel):
     total: str           # gross, formatted
     status: str
     due_date: str
+    created_date: str
     paid_at: str
     days_overdue: int
     notes: str

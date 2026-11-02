@@ -438,6 +438,12 @@ function renderBrief(markdown: string) {
         </p>
       );
     if (line.trim() === "") return null;
+    if (/^_.+_$/.test(line.trim()))
+      return (
+        <p key={key} className="pt-2 text-xs italic text-slate-500">
+          {line.trim().slice(1, -1)}
+        </p>
+      );
     return (
       <p key={key} className="text-slate-300">
         {stripBold(line)}

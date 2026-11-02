@@ -44,6 +44,14 @@ TIMELINES = {
     "flexible": "zeitlich flexibel",
 }
 
+# Labels for the form; the sentences above are used inside the brief text.
+TIMELINE_LABELS = {
+    "asap": "So schnell wie möglich",
+    "4w": "In etwa 4 Wochen",
+    "8w": "In 2 Monaten",
+    "flexible": "Zeitlich flexibel",
+}
+
 
 def _round_to(value: float, step: int) -> int:
     return int(round(value / step) * step)

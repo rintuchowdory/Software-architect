@@ -46,6 +46,7 @@ def to_out(inv: models.Invoice) -> schemas.InvoiceOut:
         total=money(gross_of(inv.amount, rate)),
         status=effective_status(inv),
         due_date=inv.due_date.isoformat() if inv.due_date else "",
+        created_date=inv.created_at.date().isoformat() if inv.created_at else "",
         paid_at=inv.paid_at.isoformat() if inv.paid_at else "",
         days_overdue=days_overdue(inv),
         notes=inv.notes or "",

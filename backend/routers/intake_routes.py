@@ -15,7 +15,7 @@ from sqlalchemy.orm import Session
 
 from database import get_db
 import models, schemas
-from brief import PROJECT_TYPES, FEATURES, TIMELINES, generate_brief
+from brief import PROJECT_TYPES, FEATURES, TIMELINE_LABELS, generate_brief
 from utils import money
 
 router = APIRouter(prefix="/public/intake", tags=["intake"])
@@ -40,7 +40,7 @@ def options():
     return {
         "project_types": [{"value": k, "label": v[0]} for k, v in PROJECT_TYPES.items()],
         "features": [{"value": k, "label": v[0]} for k, v in FEATURES.items()],
-        "timelines": [{"value": k, "label": v.capitalize()} for k, v in TIMELINES.items()],
+        "timelines": [{"value": k, "label": label} for k, label in TIMELINE_LABELS.items()],
     }
 
 

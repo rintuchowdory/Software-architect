@@ -15,6 +15,7 @@ type Invoice = {
   total: string;
   status: string;
   due_date: string;
+  created_date: string;
   paid_at: string;
   notes: string;
 };
@@ -33,8 +34,11 @@ type Profile = {
   complete: boolean;
 };
 
-function today() {
-  return new Date().toLocaleDateString("de-DE", { day: "2-digit", month: "2-digit", year: "numeric" });
+function deDate(value: string) {
+  if (!value) return "";
+  // Accepts ISO (2026-11-02) and returns the German convention (02.11.2026).
+  const [y, m, d] = value.split("-");
+  return y && m && d ? `${d}.${m}.${y}` : value;
 }
 
 export default function InvoiceDetail() {
@@ -97,8 +101,8 @@ export default function InvoiceDetail() {
             <div className="text-right">
               <p className="text-xs uppercase tracking-wide text-slate-500">Rechnung</p>
               <p className="mt-1 font-mono text-sm font-semibold">{inv.number || "—"}</p>
-              <p className="mt-1 text-xs text-slate-500">Datum: {today()}</p>
-              {inv.due_date && <p className="text-xs text-slate-500">Fällig: {inv.due_date}</p>}
+              <p className="mt-1 text-xs text-slate-500">Datum: {deDate(inv.created_date)}</p>
+              {inv.due_date && <p className="text-xs text-slate-500">Fällig: {deDate(inv.due_date)}</p>}
             </div>
           </header>
 
@@ -165,7 +169,7 @@ export default function InvoiceDetail() {
 
       {inv?.status === "paid" && inv.paid_at && (
         <p className="mt-4 text-center text-xs text-emerald-400 print:hidden">
-          Marked paid on {inv.paid_at}
+          Marked paid on {deDate(inv.paid_at)}
         </p>
       )}
     </div>
