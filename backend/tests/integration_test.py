@@ -49,30 +49,6 @@ def call(method, path, body=None, token=None):
             return e.code, {}
 
 
-class NoRedirect(urllib.request.HTTPRedirectHandler):
-    def redirect_request(self, req, fp, code, msg, headers, newurl):
-        return None
-
-
-_no_redirect_opener = urllib.request.build_opener(NoRedirect)
-
-
-def call_no_redirect(method, path, body=None):
-    """Like call(), but returns (status, {location}) for 3xx responses."""
-    req = urllib.request.Request(f"http://127.0.0.1:{PORT}{path}", method=method)
-    try:
-        with _no_redirect_opener.open(req, timeout=10) as r:
-            return r.status, {"location": r.headers.get("Location", "")}
-    except urllib.error.HTTPError as e:
-        # 3xx arrives here when redirects are disabled — keep the Location.
-        if 300 <= e.code < 400:
-            return e.code, {"location": e.headers.get("Location", "")}
-        try:
-            return e.code, json.loads(e.read() or b"{}")
-        except Exception:
-            return e.code, {}
-
-
 def check(name, cond, extra=""):
     (PASS if cond else FAIL).append(name)
     print(f"{'PASS' if cond else 'FAIL'}  {name}" + (f"  [{extra}]" if extra and not cond else ""))
@@ -108,13 +84,6 @@ def main():
         **os.environ,
         "DATABASE_URL": f"sqlite:///{db_path}",
         "JWT_SECRET": "ci-test-secret",
-        # Deterministic social-provider config (regardless of host env):
-        # GitHub "configured" with fake creds, Microsoft unconfigured, Google unset.
-        "GITHUB_CLIENT_ID": "ci-fake-github-id",
-        "GITHUB_CLIENT_SECRET": "ci-fake-github-secret",
-        "MICROSOFT_CLIENT_ID": "",
-        "MICROSOFT_CLIENT_SECRET": "",
-        "GOOGLE_CLIENT_ID": "",
     }
     proc = subprocess.Popen(
         [sys.executable, "-m", "uvicorn", "main:app", "--port", str(PORT)],
@@ -139,32 +108,18 @@ def run_checks():
     email = f"integration_{ts}@test.dev"
     pw = "correcthorse123"
 
-    # --- social providers -----------------------------------------------------
+    # --- social sign-in is removed (email + password only) -------------------
     s, r = call("GET", "/api/auth/providers")
-    check(
-        "providers: github on, microsoft/google off",
-        s == 200 and r.get("github") is True and r.get("microsoft") is False and r.get("google") is False,
-        f"{s} {r}",
-    )
+    check("providers endpoint removed: 404", s == 404, f"{s} {r}")
 
-    s, r = call_no_redirect("GET", "/api/auth/github/authorize?redirect_uri=http://localhost:5173/login")
-    check(
-        "github authorize: 302 to github.com",
-        s == 302 and r.get("location", "").startswith("https://github.com/login/oauth/authorize"),
-        f"{s} {r}",
-    )
+    s, r = call("POST", "/api/auth/google", {"credential": "fake.google.token"})
+    check("google endpoint removed: 404", s == 404, f"{s} {r}")
 
-    s, r = call_no_redirect("GET", "/api/auth/github/authorize?redirect_uri=http://evil.example.com/login")
-    check("github authorize: rejects foreign redirect_uri (400)", s == 400, f"{s} {r}")
+    s, r = call("GET", "/api/auth/github/authorize?redirect_uri=http://localhost:5173/login")
+    check("github authorize removed: 404", s == 404, f"{s} {r}")
 
-    s, r = call("GET", "/api/auth/microsoft/authorize?redirect_uri=http://localhost:5173/login")
-    check("microsoft authorize: 404 when not configured", s == 404, f"{s} {r}")
-
-    s, r = call("GET", "/api/auth/facebook/authorize")
-    check("unknown provider authorize: 404", s == 404, f"{s} {r}")
-
-    s, r = call("GET", "/api/auth/github/callback?code=x&state=garbage")
-    check("github callback: 400 on invalid state", s == 400, f"{s} {r}")
+    s, r = call("GET", "/api/auth/microsoft/authorize")
+    check("microsoft authorize removed: 404", s == 404, f"{s} {r}")
 
     # --- register -----------------------------------------------------------
     s, r = call("POST", "/api/auth/register", {"name": "Integration Test", "email": email, "password": pw})
@@ -202,9 +157,16 @@ def run_checks():
     s, r = call("GET", "/api/dashboard/stats", token="garbage.token.here")
     check("garbage token: 401", s == 401, f"{s} {r}")
 
-    # --- google endpoint (must fail cleanly when GOOGLE_CLIENT_ID unset) --------
-    s, r = call("POST", "/api/auth/google", {"credential": "fake.google.token"})
-    check("google endpoint with fake credential: 401 (no 500)", s == 401, f"{s} {r}")
+    # --- session check -------------------------------------------------------
+    s, r = call("GET", "/api/auth/me", token=token)
+    check("GET /api/auth/me with token: 200 + matching email", s == 200 and r.get("email") == email, f"{s} {r}")
+
+    s, r = call("GET", "/api/auth/me")
+    check("GET /api/auth/me without token: 401", s == 401, f"{s} {r}")
+
+    # --- legacy (password-less) account can set a password on sign-up --------
+    s, r = call("POST", "/api/auth/register", {"name": "", "email": email, "password": "anotherpass123"})
+    check("register on account that already has a password: 409", s == 409, f"{s} {r}")
 
 
 if __name__ == "__main__":

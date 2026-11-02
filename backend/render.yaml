@@ -12,5 +12,3 @@ services:
         value: "https://your-frontend.vercel.app"
       - key: DATABASE_URL
         sync: false
-      - key: GOOGLE_CLIENT_ID
-        sync: false

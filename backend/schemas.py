@@ -3,10 +3,6 @@ from typing import Optional
 from pydantic import BaseModel, EmailStr
 
 
-class GoogleLoginRequest(BaseModel):
-    credential: str
-
-
 class RegisterRequest(BaseModel):
     name: str
     email: EmailStr

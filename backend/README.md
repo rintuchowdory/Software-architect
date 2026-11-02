@@ -26,36 +26,26 @@ Interactive API docs: `http://localhost:8000/docs`
 | `JWT_SECRET`    | `dev-secret-change-me`           | **Set a real secret in production.**               |
 | `CORS_ORIGINS`  | `http://localhost:5173`          | Comma-separated list of allowed frontend origins.  |
 
-## Auth (demo mode)
+## Auth
 
-`POST /api/auth/login` accepts any email/password. The first sign-in for an
-email creates the account with that password; later sign-ins don't hard-fail
-on a mismatched password (this is a demo shortcut — swap in a real password
-check, or an OAuth/passkey flow, before shipping this for real users).
+Email + password only, two endpoints:
 
-## Social sign-in providers
-
-Sign-in options are discovered by the frontend via `GET /api/auth/providers`.
-A provider appears on the login page only when its credentials are configured:
-
-| Provider | Environment variables | Where to register |
+| Endpoint | Body | Returns |
 | --- | --- | --- |
-| Google | `GOOGLE_CLIENT_ID` | Google Cloud Console → Credentials → OAuth client (used by Google Identity Services) |
-| GitHub | `GITHUB_CLIENT_ID`, `GITHUB_CLIENT_SECRET` | GitHub → Settings → Developer settings → OAuth Apps |
-| Microsoft | `MICROSOFT_CLIENT_ID`, `MICROSOFT_CLIENT_SECRET`, `MICROSOFT_TENANT_ID` (default `common`) | Azure Portal → Microsoft Entra ID → App registrations (add a web redirect URI) |
+| `POST /api/auth/register` | `{name, email, password}` | `{access_token, user}` |
+| `POST /api/auth/login` | `{email, password}` | `{access_token, user}` |
+| `GET /api/auth/me` | none (Bearer token) | `{id, name, email}` |
 
-Both OAuth providers use the authorization-code flow with a signed state
-parameter (CSRF protection, 10-minute TTL). The provider callback URL to
-register is:
-
-```
-{FRONTEND_URL}/api/auth/github/callback     # plus /microsoft/callback
-```
-
-`FRONTEND_URL` (default `http://localhost:5173`) must be set to the deployed
-frontend origin — it is used both for the provider callback URL and for the
-post-login redirect back to `/login?token=…`. Accounts are linked by email,
-so a user can combine providers on one account.
+- Passwords are hashed with PBKDF2-SHA256 (390k iterations, random salt) and
+  checked in constant time (see `utils.py`).
+- Registration requires 8+ characters and rejects an email that already has a
+  password (409). Unknown email and wrong password both return the same
+  `401 Invalid email or password`, so the endpoint can't be used to probe for
+  accounts.
+- The JWT is HS256 signed with `JWT_SECRET` and valid for 7 days.
+- Social sign-in (Google, GitHub, Microsoft) has been removed. Accounts that
+  were created through Google have no password: signing up again with that
+  email sets one.
 
 ## Deploy to Render
 
@@ -71,7 +61,8 @@ so a user can combine providers on one account.
 
 ## Next steps beyond this scaffold
 
-- Swap the demo auth for real password verification + refresh tokens.
+- Password reset by email (needs a transactional mail provider) and refresh
+  tokens, so the 7-day JWT can be short-lived.
 - Stripe integration for deposits/milestone invoices (webhook → update
   `Invoice.status`).
 - The guided intake questionnaire → auto-creates a `Client` + `Project` with a

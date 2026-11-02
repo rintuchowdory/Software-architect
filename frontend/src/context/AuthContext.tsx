@@ -1,11 +1,9 @@
 import { createContext, useContext, useState, type ReactNode } from "react";
 import {
-  loginWithGoogle as apiLoginWithGoogle,
   loginWithEmail as apiLoginWithEmail,
   register as apiRegister,
   logout as apiLogout,
   currentUser,
-  completeOAuthLogin as apiCompleteOAuthLogin,
 } from "@/lib/api";
 
 type User = { id: string; name: string; email: string };
@@ -14,8 +12,6 @@ type AuthState = {
   user: User | null;
   loading: boolean;
   error: string | null;
-  loginWithGoogle: (credential: string) => Promise<void>;
-  loginWithOAuth: (token: string, name: string, email: string) => void;
   loginWithEmail: (email: string, password: string) => Promise<void>;
   register: (name: string, email: string, password: string) => Promise<void>;
   logout: () => void;
@@ -27,35 +23,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<User | null>(currentUser());
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
-
-  async function loginWithGoogle(credential: string) {
-    setLoading(true);
-    setError(null);
-    try {
-      const u = await apiLoginWithGoogle(credential);
-      setUser(u);
-    } catch (e) {
-      setError(e instanceof Error ? e.message : "Could not sign in with Google");
-      throw e;
-    } finally {
-      setLoading(false);
-    }
-  }
-
-  function loginWithOAuth(token: string, name: string, email: string) {
-    setLoading(true);
-    setError(null);
-    try {
-      const u = apiCompleteOAuthLogin(token, name, email);
-      setUser(u);
-    } catch (e) {
-      apiLogout();
-      setError(e instanceof Error ? e.message : "Could not complete social sign-in");
-      throw e;
-    } finally {
-      setLoading(false);
-    }
-  }
 
   async function loginWithEmail(email: string, password: string) {
     setLoading(true);
@@ -91,7 +58,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }
 
   return (
-    <AuthContext.Provider value={{ user, loading, error, loginWithGoogle, loginWithOAuth, loginWithEmail, register, logout }}>
+    <AuthContext.Provider value={{ user, loading, error, loginWithEmail, register, logout }}>
       {children}
     </AuthContext.Provider>
   );

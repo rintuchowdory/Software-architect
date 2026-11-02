@@ -14,8 +14,8 @@ See the README in each folder for local setup and deployment steps.
 
 ## Status
 
-Working scaffold: auth (email/password, Google, GitHub, and Microsoft
-sign-in), routing, and all four app pages are wired to a real API with
-seeded demo data. Not yet built: Stripe checkout, the guided intake
+Working scaffold: email + password auth (JWT, PBKDF2 hashes), routing, and
+all four app pages are wired to a real API with seeded demo data. Social
+sign-in (Google/GitHub/Microsoft) was removed, so email is the only way in. Not yet built: Stripe checkout, the guided intake
 questionnaire, the AI brief/prompt generator, and the public (no-login)
 client portal.

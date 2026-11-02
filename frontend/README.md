@@ -14,28 +14,28 @@ npm run dev
 The dev server proxies `/api/*` to `http://localhost:8000` (see `vite.config.ts`),
 so run the backend locally on port 8000 alongside this.
 
-Visit `http://localhost:5173` for the landing page, `/login` to sign in (any
-email/password works against the demo backend — first sign-in for an email
-creates the account), and `/app` for the dashboard.
+Visit `http://localhost:5173` for the landing page, `/login` to register or
+sign in with email + password (8 characters minimum), and `/app` for the
+dashboard.
 
-## Environment variables
+## API base URL
 
-Copy `.env.development` as a starting point. In production, set:
+The app always calls `/api` on its own origin. In dev, Vite proxies that to
+`http://localhost:8000`; in production, `vercel.json` rewrites `/api/*` to the
+deployed Render backend. There is no `VITE_API_BASE` variable to forget: a
+stale value used to point builds at a deleted backend, so it is gone.
 
-```
-VITE_API_BASE=https://your-backend.onrender.com/api
-```
-
-(There's no proxy in production, so this must be the full URL of your deployed
-backend, including the `/api` prefix.)
+If you host this somewhere other than Vercel, add an equivalent `/api/*`
+proxy to `https://software-architect-api.onrender.com/api/*` (Cloudflare Pages
+`_redirects`, Netlify redirects, nginx `proxy_pass`).
 
 ## Deploy to Vercel
 
 1. Import this repo in Vercel. Framework preset: **Vite**.
 2. Set the project's **Root Directory** to `frontend` (this is a monorepo).
-3. Set the `VITE_API_BASE` environment variable to your Render backend URL.
-4. Deploy. `vercel.json` already rewrites all routes to `index.html` so client-side
-   routing (`/app`, `/login`, etc.) works on refresh.
+3. Deploy. `vercel.json` rewrites `/api/*` to the Render backend and every other
+   route to `index.html`, so client-side routing (`/app`, `/login`) works on
+   refresh and no environment variables are needed.
 
 ## What's real vs. stubbed
 
