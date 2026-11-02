@@ -17,6 +17,7 @@ from routers import (
     dashboard_routes,
     intake_routes,
     studio_routes,
+    admin_routes,
 )
 from utils import next_invoice_number, default_tax_rate, create_numbered_invoice
 
@@ -121,6 +122,7 @@ app.include_router(financials_routes.router, prefix="/api")
 app.include_router(dashboard_routes.router, prefix="/api")
 app.include_router(intake_routes.router, prefix="/api")
 app.include_router(studio_routes.router, prefix="/api")
+app.include_router(admin_routes.router, prefix="/api")
 
 
 @app.exception_handler(SQLAlchemyError)

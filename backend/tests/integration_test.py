@@ -33,11 +33,13 @@ PASS: list[str] = []
 FAIL: list[str] = []
 
 
-def call(method, path, body=None, token=None):
+def call(method, path, body=None, token=None, headers=None):
     req = urllib.request.Request(f"http://127.0.0.1:{PORT}{path}", method=method)
     req.add_header("Content-Type", "application/json")
     if token:
         req.add_header("Authorization", f"Bearer {token}")
+    for key, value in (headers or {}).items():
+        req.add_header(key, value)
     data = json.dumps(body).encode() if body is not None else None
     try:
         with urllib.request.urlopen(req, data=data, timeout=10) as r:
@@ -84,6 +86,7 @@ def main():
         **os.environ,
         "DATABASE_URL": f"sqlite:///{db_path}",
         "JWT_SECRET": "ci-test-secret",
+        "ADMIN_TOKEN": "test-admin-token",
     }
     proc = subprocess.Popen(
         [sys.executable, "-m", "uvicorn", "main:app", "--port", str(PORT)],
@@ -247,6 +250,18 @@ def run_checks():
     s, clients = call("GET", "/api/clients", token=token)
     check("intake created a lead client",
           any(c["email"] == intake_body["email"] and c["status"] == "lead" for c in clients), str(clients)[:200])
+
+    # --- admin export (guarded, off unless ADMIN_TOKEN is set) ---------------
+    s, r = call("GET", "/api/admin/export")
+    check("admin export: rejects missing token", s == 401, f"{s} {r}")
+
+    s, r = call("GET", "/api/admin/export", headers={"X-Admin-Token": "wrong"})
+    check("admin export: rejects wrong token", s == 401, f"{s} {r}")
+
+    s, r = call("GET", "/api/admin/export", headers={"X-Admin-Token": "test-admin-token"})
+    check("admin export: returns every table with counts",
+          s == 200 and set(r["counts"]) == {"users", "clients", "projects", "invoices", "studio_settings"},
+          f"{s} {r.get('counts')}")
 
     # --- studio settings: editable from the UI, drives invoices --------------
     s, profile = call("GET", "/api/studio/profile", token=token)
