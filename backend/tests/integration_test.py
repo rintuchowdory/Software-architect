@@ -276,6 +276,17 @@ def run_checks():
     s, r = call("PUT", "/api/studio/profile", {**profile, "iban": "DE12"}, token=token)
     check("settings: short IBAN rejected", s == 422, f"{s} {r}")
 
+    # A city without a street would print an invoice that looks valid but is not.
+    s, partial = call("PUT", "/api/studio/profile", {**profile, "owner": "Rintu", "email": "r@example.dev",
+                                                    "address": "52499 Baesweiler", "vat_id": "DE123456789"}, token=token)
+    check("settings: postcode without street keeps invoices in draft",
+          s == 200 and partial["complete"] is False and "address" in partial["missing"],
+          f"{s} {partial.get('missing')}")
+
+    s, fixed = call("PUT", "/api/studio/profile", {**partial, "address": "Hauptstrasse 5, 52499 Baesweiler"}, token=token)
+    check("settings: adding a street completes the profile",
+          s == 200 and fixed["complete"] is True, f"{s} {fixed.get('missing')}")
+
     full = {
         "name": "Chowdory Studio",
         "owner": "Rintu Chowdory",

@@ -8,6 +8,7 @@ what is missing instead of printing a plausible-looking fake address.
 from __future__ import annotations
 
 import os
+import re
 
 import models
 
@@ -39,6 +40,21 @@ ENV_KEYS = {
 
 DEFAULTS = {"name": "Software Architect"}
 
+POSTCODE = re.compile(r"\b\d{5}\b")
+
+
+def address_usable(address: str) -> bool:
+    """§14 UStG wants the sender's full address, so a postcode alone is not enough.
+
+    "52499 Baesweiler" tells a client nothing about where to send a letter, and
+    printing it on an invoice that claims to be complete would be wrong. A
+    street with a house number has to be there too.
+    """
+    if not POSTCODE.search(address):
+        return False
+    without_postcode = POSTCODE.sub(" ", address)
+    return any(char.isdigit() for char in without_postcode) and len(without_postcode.split()) >= 1
+
 
 def _row(session) -> models.StudioSettings | None:
     return session.query(models.StudioSettings).filter_by(id=SINGLETON).first()
@@ -60,7 +76,9 @@ def load(session) -> dict:
     rate = None if row is None else row.hourly_rate
     data["hourly_rate"] = float(rate or os.getenv("HOURLY_RATE", "90"))
 
-    missing = [f for f in ("owner", "address", "email") if not data[f]]
+    missing = [f for f in ("owner", "email") if not data[f]]
+    if not address_usable(data["address"]):
+        missing.insert(1, "address")
     # A German invoice needs the tax figure or the exemption reason (§14 UStG).
     if not small_business and not (data["vat_id"] or data["tax_number"]):
         missing.append("vat_id")
