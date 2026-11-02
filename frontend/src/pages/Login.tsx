@@ -137,7 +137,17 @@ export default function Login() {
             </button>
           </form>
 
-          {error && <p className="mt-4 text-center text-sm text-red-400">{error}</p>}
+          {error && (
+            <div className="mt-4 rounded-lg border border-red-400/20 bg-red-400/5 px-3 py-2 text-center text-sm text-red-400">
+              <p>{error}</p>
+              {mode === "signin" && error.toLowerCase().includes("invalid email or password") && (
+                <p className="mt-1 text-xs text-slate-400">
+                  Wrong password, or no account for this email yet. On your first visit, use the
+                  Sign up tab to create it.
+                </p>
+              )}
+            </div>
+          )}
         </div>
 
         <p className="mt-6 text-center text-xs text-slate-500">
