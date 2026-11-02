@@ -32,6 +32,7 @@ type Profile = {
   bank: string;
   small_business: boolean;
   complete: boolean;
+  missing: string[];
 };
 
 function deDate(value: string) {
@@ -70,9 +71,12 @@ export default function InvoiceDetail() {
         </Link>
         <div className="flex items-center gap-2">
           {p && !p.complete && (
-            <span className="rounded-lg border border-warn-400/20 bg-warn-400/10 px-3 py-1.5 text-xs text-warn-400">
-              Add your studio address to make this a valid invoice
-            </span>
+            <Link
+              to="/app/settings"
+              className="rounded-lg border border-warn-400/20 bg-warn-400/10 px-3 py-1.5 text-xs text-warn-400 transition hover:bg-warn-400/20 print:hidden"
+            >
+              Missing studio details ({p.missing.length}) — add them now
+            </Link>
           )}
           <button
             onClick={() => window.print()}

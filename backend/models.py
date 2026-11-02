@@ -63,3 +63,25 @@ class Invoice(Base):
     created_at = Column(DateTime, default=datetime.utcnow)
 
     project = relationship("Project", back_populates="invoices")
+
+
+class StudioSettings(Base):
+    """Single row (id="studio") holding what goes on an invoice.
+
+    Kept in the database rather than the environment so the owner can fix it
+    from the UI without a redeploy, and so a fresh clone has no personal data.
+    """
+
+    __tablename__ = "studio_settings"
+    id = Column(String, primary_key=True, default=lambda: "studio")
+    name = Column(String, default="Software Architect")
+    owner = Column(String, default="")
+    address = Column(String, default="")
+    email = Column(String, default="")
+    phone = Column(String, default="")
+    vat_id = Column(String, default="")
+    tax_number = Column(String, default="")
+    iban = Column(String, default="")
+    bank = Column(String, default="")
+    small_business = Column(String, default="false")  # "true" -> §19 UStG, no VAT
+    hourly_rate = Column(Float, default=90.0)

@@ -248,6 +248,48 @@ def run_checks():
     check("intake created a lead client",
           any(c["email"] == intake_body["email"] and c["status"] == "lead" for c in clients), str(clients)[:200])
 
+    # --- studio settings: editable from the UI, drives invoices --------------
+    s, profile = call("GET", "/api/studio/profile", token=token)
+    check("settings: incomplete by default", s == 200 and profile.get("complete") is False, str(profile.get("missing")))
+
+    s, r = call("PUT", "/api/studio/profile", {**profile, "email": "not-an-email"}, token=token)
+    check("settings: invalid email rejected", s == 422, f"{s} {r}")
+
+    s, r = call("PUT", "/api/studio/profile", {**profile, "hourly_rate": 5}, token=token)
+    check("settings: absurd hourly rate rejected", s == 422, f"{s} {r}")
+
+    s, r = call("PUT", "/api/studio/profile", {**profile, "iban": "DE12"}, token=token)
+    check("settings: short IBAN rejected", s == 422, f"{s} {r}")
+
+    full = {
+        "name": "Chowdory Studio",
+        "owner": "Rintu Chowdory",
+        "address": "Musterweg 1, 40210 Duesseldorf",
+        "email": "studio@example.dev",
+        "phone": "+49 211 123456",
+        "vat_id": "DE123456789",
+        "tax_number": "",
+        "iban": "DE89 3704 0044 0532 0130 00",
+        "bank": "Musterbank",
+        "small_business": False,
+        "hourly_rate": 120,
+    }
+    s, saved = call("PUT", "/api/studio/profile", full, token=token)
+    check("settings: save returns complete profile", s == 200 and saved["complete"] and saved["missing"] == [], f"{s} {saved}")
+    check("settings: IBAN normalised", saved["iban"] == "DE89370400440532013000", saved.get("iban"))
+
+    s, again = call("GET", "/api/studio/profile", token=token)
+    check("settings: persisted across requests", again["owner"] == "Rintu Chowdory" and again["hourly_rate"] == 120, str(again))
+
+    # the estimate must follow the configured rate, not a frozen constant
+    rated = {**intake_body, "email": f"rate_{ts}@test.dev"}
+    s, priced = call("POST", "/api/public/intake", rated)
+    check("intake uses the configured hourly rate",
+          s == 200 and "Stundensatz 120 €" in priced["brief"], str(priced.get("brief", ""))[-160:])
+
+    s, zero = call("PUT", "/api/studio/profile", {**full, "small_business": True}, token=token)
+    check("settings: small business accepted", s == 200 and zero["small_business"] is True, str(zero))
+
     s, r = call("POST", f"/api/projects/{intake['project_id']}/brief", token=token)
     check("regenerate brief from intake answers: 200", s == 200 and r.get("has_brief"), f"{s} {r}")
 
@@ -261,7 +303,7 @@ def run_checks():
 
     # --- rate limit on the public endpoint ----------------------------------
     statuses = []
-    for _ in range(4):
+    for _ in range(3):
         s, _r = call("POST", "/api/public/intake", intake_body)
         statuses.append(s)
     check("intake rate limit kicks in after 5 per hour", 429 in statuses, str(statuses))

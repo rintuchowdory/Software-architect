@@ -15,6 +15,7 @@ from sqlalchemy.orm import Session
 
 from database import get_db
 import models, schemas
+import studio_profile
 from brief import PROJECT_TYPES, FEATURES, TIMELINE_LABELS, generate_brief
 from utils import money
 
@@ -53,7 +54,7 @@ def submit(payload: schemas.IntakeRequest, request: Request, db: Session = Depen
 
     answers = payload.model_dump()
     answers["created_on"] = datetime.utcnow().date().isoformat()
-    result = generate_brief(answers)
+    result = generate_brief(answers, hourly_rate=studio_profile.hourly_rate(db))
 
     client = db.query(models.Client).filter(models.Client.email == payload.email).first()
     if not client:

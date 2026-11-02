@@ -71,3 +71,28 @@ Email + password only, two endpoints:
   where the "copy-paste ready Base44 prompt" feature from the brief would live).
 - A no-login client portal view (public read-only project + invoice status by
   share token).
+
+## Moving to another database
+
+The free Render Postgres expires; Supabase and Neon both work because the app
+only needs a `DATABASE_URL` (SQLAlchemy creates the schema on startup). To carry
+the data over without losing invoices:
+
+```bash
+cd backend
+DATABASE_URL="postgresql://...render..." python scripts/db_snapshot.py export backup.json
+DATABASE_URL="postgresql://...supabase..." python scripts/db_snapshot.py import backup.json
+```
+
+Then swap `DATABASE_URL` in the Render service and deploy. The snapshot is plain
+JSON, so it also restores into the SQLite fallback for local work. Existing rows
+are skipped by id, so importing twice does not duplicate anything.
+
+## Studio details on invoices
+
+`Settings` in the app writes the `studio_settings` row: name, owner, address,
+VAT ID / tax number, IBAN, hourly rate and the §19 UStG flag. Environment
+variables (`STUDIO_*`, `HOURLY_RATE`) are only the initial value for a fresh
+instance, so a clone of the repository contains no personal data. The invoice
+print view marks a profile as incomplete until owner, address, email and a tax
+reference are filled in.

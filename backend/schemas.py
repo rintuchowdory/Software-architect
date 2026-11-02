@@ -1,6 +1,6 @@
 from datetime import date
 from typing import List, Optional
-from pydantic import BaseModel, EmailStr, Field
+from pydantic import BaseModel, EmailStr, Field, field_validator
 
 
 class RegisterRequest(BaseModel):
@@ -186,3 +186,56 @@ class IntakeResponse(BaseModel):
     hours: int
     estimate_low: str
     estimate_high: str
+
+
+class StudioProfileIn(BaseModel):
+    name: str = ""
+    owner: str = ""
+    address: str = ""
+    email: str = ""
+    phone: str = ""
+    vat_id: str = ""
+    tax_number: str = ""
+    iban: str = ""
+    bank: str = ""
+    small_business: bool = False
+    hourly_rate: float = 90
+
+    @field_validator("hourly_rate")
+    @classmethod
+    def _rate(cls, v: float) -> float:
+        if not 10 <= v <= 1000:
+            raise ValueError("hourly_rate must be between 10 and 1000")
+        return v
+
+    @field_validator("email")
+    @classmethod
+    def _email(cls, v: str) -> str:
+        v = (v or "").strip()
+        if v and ("@" not in v or "." not in v.split("@")[-1]):
+            raise ValueError("invalid email")
+        return v
+
+    @field_validator("iban")
+    @classmethod
+    def _iban(cls, v: str) -> str:
+        cleaned = (v or "").replace(" ", "").upper()
+        if cleaned and not (15 <= len(cleaned) <= 34 and cleaned.isalnum()):
+            raise ValueError("invalid IBAN")
+        return cleaned
+
+
+class StudioProfileOut(BaseModel):
+    name: str
+    owner: str
+    address: str
+    email: str
+    phone: str
+    vat_id: str
+    tax_number: str
+    iban: str
+    bank: str
+    small_business: bool
+    hourly_rate: float
+    complete: bool
+    missing: list[str]

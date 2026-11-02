@@ -5,7 +5,7 @@ from sqlalchemy.orm import Session
 from database import get_db
 import models, schemas
 from auth import get_current_user
-from brief import HOURLY_RATE
+import studio_profile
 from utils import money, gross_of
 from routers.financials_routes import days_overdue, effective_status
 
@@ -184,7 +184,7 @@ def overview(db: Session = Depends(get_db), user: models.User = Depends(get_curr
         overdue_amount=money(overdue_amount),
         new_leads=new_leads,
         avg_project_value=money(avg_project),
-        billable_hours_estimate=int(sum(p.budget for p in projects if p.stage == "in_progress") / max(HOURLY_RATE, 1)),
+        billable_hours_estimate=int(sum(p.budget for p in projects if p.stage == "in_progress") / max(studio_profile.hourly_rate(db), 1)),
         revenue_series=series,
         pipeline=pipeline,
         overdue=overdue_out,

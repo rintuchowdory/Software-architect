@@ -7,6 +7,7 @@ import DashboardHome from "@/pages/app/DashboardHome";
 import Clients from "@/pages/app/Clients";
 import Projects from "@/pages/app/Projects";
 import Financials from "@/pages/app/Financials";
+import Settings from "@/pages/app/Settings";
 import InvoiceDetail from "@/pages/app/InvoiceDetail";
 import Intake from "@/pages/Intake";
 import Legal from "@/pages/legal/Legal";
@@ -27,6 +28,7 @@ function App() {
             <Route path="clients" element={<Clients />} />
             <Route path="projects" element={<Projects />} />
             <Route path="financials" element={<Financials />} />
+            <Route path="settings" element={<Settings />} />
             <Route path="financials/:id" element={<InvoiceDetail />} />
           </Route>
         </Routes>

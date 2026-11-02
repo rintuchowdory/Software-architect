@@ -6,6 +6,7 @@ from database import get_db
 import models, schemas
 from auth import get_current_user
 from utils import money
+import studio_profile
 from brief import generate_brief
 
 router = APIRouter(prefix="/projects", tags=["projects"])
@@ -93,7 +94,7 @@ def regenerate_brief(
             detail="This project has no intake answers. Send the intake link instead.",
         )
 
-    result = generate_brief(answers)
+    result = generate_brief(answers, hourly_rate=studio_profile.hourly_rate(db))
     project.brief = result["brief"]
     project.brief_source = "intake"
     project.budget = (result["estimate_low"] + result["estimate_high"]) / 2

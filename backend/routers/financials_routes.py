@@ -6,6 +6,7 @@ from sqlalchemy.orm import Session
 from database import get_db
 import models, schemas
 from auth import get_current_user
+import studio_profile
 from utils import money, gross_of, tax_of, default_tax_rate, create_numbered_invoice
 
 router = APIRouter(prefix="/financials", tags=["financials"])
@@ -76,7 +77,10 @@ def create_invoice(
     invoice = create_numbered_invoice(
         db,
         **data,
-        tax_rate=rate if rate is not None else default_tax_rate(),
+        tax_rate=rate
+        if rate is not None
+        # A Kleinunternehmer must not charge VAT, so follow the settings row.
+        else (0.0 if studio_profile.load(db)["small_business"] else default_tax_rate()),
         due_date=payload.due_date or date.today(),
     )
     db.commit()

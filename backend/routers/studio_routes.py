@@ -1,40 +1,31 @@
-"""Studio profile for invoices and the print view.
+"""Studio profile: the sender block on invoices.
 
-Values come from environment variables so the repository stays free of
-personal data. Anything missing is returned as an empty string and the UI
-marks it as "to be added" instead of inventing an address.
+Stored in the database so it can be edited from the UI (Settings) without a
+redeploy; environment variables remain as the initial value for a fresh
+instance. Nothing here is committed to the repository.
 """
 
-import os
+from fastapi import APIRouter, Depends, HTTPException
+from sqlalchemy.orm import Session
 
-from fastapi import APIRouter, Depends
-
-import models, schemas
+import models, schemas, studio_profile
 from auth import get_current_user
+from database import get_db
 
 router = APIRouter(prefix="/studio", tags=["studio"])
 
 
-def _profile() -> dict:
-    return {
-        "name": os.getenv("STUDIO_NAME", "Software Architect"),
-        "owner": os.getenv("STUDIO_OWNER", ""),
-        "address": os.getenv("STUDIO_ADDRESS", ""),
-        "email": os.getenv("STUDIO_EMAIL", ""),
-        "phone": os.getenv("STUDIO_PHONE", ""),
-        "vat_id": os.getenv("STUDIO_VAT_ID", ""),
-        "tax_number": os.getenv("STUDIO_TAX_NUMBER", ""),
-        "iban": os.getenv("STUDIO_IBAN", ""),
-        "bank": os.getenv("STUDIO_BANK", ""),
-        "small_business": os.getenv("STUDIO_SMALL_BUSINESS", "false").lower() in ("1", "true", "yes"),
-        "hourly_rate": os.getenv("HOURLY_RATE", "90"),
-        "complete": all(
-            os.getenv(key, "").strip()
-            for key in ("STUDIO_OWNER", "STUDIO_ADDRESS", "STUDIO_EMAIL")
-        ),
-    }
+@router.get("/profile", response_model=schemas.StudioProfileOut)
+def profile(user: models.User = Depends(get_current_user), db: Session = Depends(get_db)):
+    return studio_profile.load(db)
 
 
-@router.get("/profile")
-def profile(user: models.User = Depends(get_current_user)):
-    return _profile()
+@router.put("/profile", response_model=schemas.StudioProfileOut)
+def update_profile(
+    payload: schemas.StudioProfileIn,
+    user: models.User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    if not (payload.name or "").strip():
+        raise HTTPException(status_code=422, detail="Der Studio-Name darf nicht leer sein.")
+    return studio_profile.save(db, payload.model_dump())

@@ -1,5 +1,5 @@
 import { NavLink, Outlet, Navigate, Link } from "react-router-dom";
-import { CodeXml, LayoutDashboard, Users, FolderKanban, Wallet, LogOut, ClipboardList } from "lucide-react";
+import { CodeXml, LayoutDashboard, Users, FolderKanban, Wallet, LogOut, ClipboardList, Settings as Cog } from "lucide-react";
 import { useAuth } from "@/context/AuthContext";
 import { cn } from "@/lib/cn";
 
@@ -8,6 +8,7 @@ const nav = [
   { to: "/app/clients", label: "Clients", icon: Users },
   { to: "/app/projects", label: "Projects", icon: FolderKanban },
   { to: "/app/financials", label: "Financials", icon: Wallet },
+  { to: "/app/settings", label: "Settings", icon: Cog },
 ];
 
 export default function AppShell() {

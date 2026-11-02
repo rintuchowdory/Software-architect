@@ -9,7 +9,7 @@ from __future__ import annotations
 
 import os
 
-HOURLY_RATE = float(os.getenv("HOURLY_RATE", "90"))
+HOURLY_RATE = float(os.getenv("HOURLY_RATE", "90"))  # fallback when no settings row exists
 
 PROJECT_TYPES = {
     "website": ("Website / Marketingseite", 45),
@@ -57,15 +57,16 @@ def _round_to(value: float, step: int) -> int:
     return int(round(value / step) * step)
 
 
-def estimate(project_type: str, features: list[str]) -> tuple[int, int, int]:
+def estimate(project_type: str, features: list[str], rate: float | None = None) -> tuple[int, int, int]:
     """Return (hours, low_eur, high_eur) for a project type and feature list."""
+    rate = float(rate or HOURLY_RATE)
     _, base = PROJECT_TYPES.get(project_type, PROJECT_TYPES["other"])
     hours = base
     for key in features:
         hours += FEATURES.get(key, ("", 8))[1]
     hours = _round_to(hours, 5)
-    low = _round_to(hours * HOURLY_RATE * 0.85, 50)
-    high = _round_to(hours * HOURLY_RATE * 1.25, 50)
+    low = _round_to(hours * rate * 0.85, 50)
+    high = _round_to(hours * rate * 1.25, 50)
     return hours, low, high
 
 
@@ -75,13 +76,14 @@ def _feature_lines(features: list[str]) -> list[str]:
     return [f"- {FEATURES.get(f, (f, 8))[0]}" for f in features]
 
 
-def generate_brief(answers: dict) -> dict:
+def generate_brief(answers: dict, hourly_rate: float | None = None) -> dict:
     """Build the brief from intake answers.
 
     Expected keys (all optional except project_type): project_type, goal,
     features, timeline, budget, existing, notes, client_name, company,
     project_name.
     """
+    rate = float(hourly_rate or HOURLY_RATE)
     project_type = (answers.get("project_type") or "other").lower()
     type_label, _ = PROJECT_TYPES.get(project_type, PROJECT_TYPES["other"])
     features = [f for f in (answers.get("features") or []) if f]
@@ -94,7 +96,7 @@ def generate_brief(answers: dict) -> dict:
     company = (answers.get("company") or "").strip()
     title = (answers.get("project_name") or "").strip() or f"{type_label} für {company or client_name or 'neuen Kunden'}"
 
-    hours, low, high = estimate(project_type, features)
+    hours, low, high = estimate(project_type, features, rate)
 
     lines = [f"# {title}", ""]
     if client_name or company:
@@ -114,7 +116,7 @@ def generate_brief(answers: dict) -> dict:
         "",
         "## Aufwandsschätzung",
         f"- Geschätzter Aufwand: {hours} Stunden",
-        f"- Rahmen: {low:,.0f} € bis {high:,.0f} € netto (Stundensatz {HOURLY_RATE:.0f} €)".replace(",", "."),
+        f"- Rahmen: {low:,.0f} € bis {high:,.0f} € netto (Stundensatz {rate:.0f} €)".replace(",", "."),
         f"- Gewünschter Zeitrahmen: {timeline}",
     ]
     if budget:
